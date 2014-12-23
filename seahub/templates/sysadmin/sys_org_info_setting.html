@@ -29,6 +29,17 @@
         <input type="submit" value="{% trans "Submit" %}" class="submit" />
     </form>
     {% endif %}
+
+    {% if org_trial_days %}
+    <h3>{% trans "Set Trial Days" %}</h3>
+    <form id="org_trial_days" action="" method="post" class="form">{% csrf_token %}
+        <label>{% trans "Trial Days ( -1 for no limit )" %}</label></br>
+        <input type="text" name="trial_days" class="input" value="{{ org_trial_days }}"/></br>
+        <p class="error hide"></p>
+        <input type="submit" value="{% trans "Submit" %}" class="submit" />
+    </form>
+    {% endif %}
+
 </div>
 
 {% endblock %}
@@ -45,21 +56,20 @@ $('#org_member_quota').submit(function() {
         submit_btn = $('input[type="submit"]', form);
 
     if (!$.trim(member_quota)) {
+        apply_form_error(form_id, "{% trans "Please input a number" %}");
         return false;
-    }
-
-    if (isNaN(member_quota)) {
+    } else if (isNaN(member_quota)) {
         apply_form_error(form_id, "{% trans "Input should be a number" %}");
         return false;
-    } else if (member_quota <= 0) {
-        apply_form_error(form_id, "{% trans "Input number should be greater than 0" %}");
+    } else if (trial_days < -1 || trial_days == 0) {
+        apply_form_error(form_id, "{% trans "Input number should be greater than 0 or -1 ( for no limit )" %}");
         return false;
     }
 
-    disable(submit_btn);
     $.ajax({
         url: '{% url 'sys_org_set_member_quota' org.org_id %}',
         type: 'POST',
+        cache: false,
         dataType: 'json',
         beforeSend: prepareCSRFToken,
         data: {
@@ -67,7 +77,45 @@ $('#org_member_quota').submit(function() {
         },
         success: function(data) {
             if (data['success']) {
-                location.href = '{% url 'sys_org_info_setting' org.org_id %}';
+                location.reload(true);
+            }
+        },
+        error: ajaxErrorHandler
+    });
+    return false;
+});
+{% endif %}
+
+{% if org_trial_days %}
+$('#org_trial_days').submit(function() {
+    var form = $(this),
+        form_id = form.attr('id'),
+        trial_days = $('[name="trial_days"]', form).val(),
+        submit_btn = $('input[type="submit"]', form);
+
+    if (!$.trim(trial_days)) {
+        apply_form_error(form_id, "{% trans "Please input a number" %}");
+        return false;
+    } else if (isNaN(trial_days)) {
+        apply_form_error(form_id, "{% trans "Input should be a number" %}");
+        return false;
+    } else if (trial_days < -1 || trial_days == 0) {
+        apply_form_error(form_id, "{% trans "Input number should be greater than 0 or -1 ( for no limit )" %}");
+        return false;
+    }
+
+    $.ajax({
+        url: '{% url 'sys_org_set_trial_days' org.org_id %}',
+        type: 'POST',
+        cache: false,
+        dataType: 'json',
+        beforeSend: prepareCSRFToken,
+        data: {
+            'trial_days': trial_days
+        },
+        success: function(data) {
+            if (data['success']) {
+                location.reload(true);
             }
         },
         error: ajaxErrorHandler

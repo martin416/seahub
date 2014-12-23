@@ -29,6 +29,7 @@ from seahub.views import get_system_default_repo_id
 from seahub.forms import SetUserQuotaForm, AddUserForm, BatchAddUserForm
 from seahub.profile.models import Profile, DetailedProfile
 from seahub.share.models import FileShare, UploadLinkShare
+from seahub_extra.organizations.models import OrgMemberQuota, OrgTrialDays
 
 import seahub.settings as settings
 from seahub.settings import INIT_PASSWD, SITE_NAME, \
@@ -890,14 +891,37 @@ def sys_org_set_member_quota(request, org_id):
         return HttpResponse(json.dumps({ 'error': _('Input should be a number')}),
                             status=400, content_type=content_type)
 
-    if member_quota > 0:
-        from seahub_extra.organizations.models import OrgMemberQuota
+    if member_quota > 0 or member_quota == -1:
         OrgMemberQuota.objects.set_quota(org_id, member_quota)
         messages.success(request, _(u'Success'))
         return HttpResponse(json.dumps({'success': True}), status=200,
                             content_type=content_type)
     else:
-        return HttpResponse(json.dumps({ 'error': _('Input number should be greater than 0')}),
+        return HttpResponse(json.dumps({ 'error': _('Input number should be greater than 0 or -1 ( for no limit )')}),
+                            status=400, content_type=content_type)
+
+@login_required_ajax
+@sys_staff_required
+def sys_org_set_trial_days(request, org_id):
+
+    if request.method != 'POST':
+        raise Http404
+
+    content_type = 'application/json; charset=utf-8'
+
+    try:
+        trial_days = int(request.POST.get('trial_days', '0'))
+    except ValueError:
+        return HttpResponse(json.dumps({ 'error': _('Input should be a number')}),
+                            status=400, content_type=content_type)
+
+    if trial_days == -1 or trial_days > 0 :
+        OrgTrialDays.objects.set_trial_days(org_id, trial_days)
+        messages.success(request, _(u'Success'))
+        return HttpResponse(json.dumps({'success': True}), status=200,
+                            content_type=content_type)
+    else:
+        return HttpResponse(json.dumps({ 'error': _('Input number should be greater than 0 or -1 ( for no limit )')}),
                             status=400, content_type=content_type)
 
 def sys_get_org_base_info(org_id):
@@ -998,10 +1022,18 @@ def sys_org_info_setting(request, org_id):
     org_basic_info = sys_get_org_base_info(org_id)
 
     if getattr(settings, 'ORG_MEMBER_QUOTA_ENABLED', False):
-        from seahub_extra.organizations.models import OrgMemberQuota
         org_basic_info['org_member_quota'] = OrgMemberQuota.objects.get_quota(org_id)
     else:
         org_basic_info['org_member_quota'] = None
+
+    if getattr(settings, 'ORG_SET_TRIAL_DAYS_ENABLED', False):
+        trial_days = OrgTrialDays.objects.get_trial_days(org_id)
+        if trial_days == -1:
+            org_basic_info['org_trial_days'] = 'No Limit'
+        else:
+            org_basic_info['org_trial_days'] = trial_days
+    else:
+        org_basic_info['org_trial_days'] = None
 
     return render_to_response('sysadmin/sys_org_info_setting.html',
                               org_basic_info,
