@@ -1649,7 +1649,8 @@ def repo_history_changes(request, repo_id):
         return HttpResponse(json.dumps(changes), content_type=content_type)
 
     # perm check
-    if check_repo_access_permission(repo.id, request.user) is None:
+    if check_repo_access_permission(repo.id, request.user) is None and \
+        request.user.is_staff == False:
         return HttpResponse(json.dumps(changes), content_type=content_type)
 
     username = request.user.username

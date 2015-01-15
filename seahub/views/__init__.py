@@ -56,8 +56,10 @@ from seahub.utils import render_permission_error, render_error, list_to_string, 
     user_traffic_over_limit, is_org_context
 from seahub.utils.paginator import get_page_range
 from seahub.utils.star import get_dir_starred_files
+from seahub.utils.timeutils import utc_to_local
 from seahub.views.modules import MOD_PERSONAL_WIKI, enable_mod_for_user, \
     disable_mod_for_user
+from seahub.utils.repo import send_perm_audit_msg
 from seahub.utils.devices import get_user_devices, do_unlink_device
 import seahub.settings as settings
 from seahub.settings import FILE_PREVIEW_MAX_SIZE, INIT_PASSWD, USE_PDFJS, \
@@ -1120,6 +1122,9 @@ def unsetinnerpub(request, repo_id):
     Only system admin, organization admin or repo owner can perform this op.
     """
     repo = get_repo(repo_id)
+    perm = request.GET.get('permission', None)
+    if perm is None:
+        return render_error(request, _(u'Argument is not valid'))
     if not repo:
         messages.error(request, _('Failed to unshare the library, as it does not exist.'))
         return HttpResponseRedirect(reverse('share_admin'))
@@ -1145,6 +1150,7 @@ def unsetinnerpub(request, repo_id):
                                                                    repo.id)
         else:
             seaserv.unset_inner_pub_repo(repo.id)
+            send_perm_audit_msg('delete-repo-perm', username, 'all', repo_id, '/', perm)
 
         messages.success(request, _('Unshare "%s" successfully.') % repo.name)
     except SearpcError:
@@ -1791,14 +1797,6 @@ def group_events_data(events):
     """
     Group events according to the date.
     """
-    # e.timestamp is a datetime.datetime in UTC
-    # change from UTC timezone to current seahub timezone
-    def utc_to_local(dt):
-        tz = timezone.get_default_timezone()
-        utc = dt.replace(tzinfo=timezone.utc)
-        local = timezone.make_naive(utc, tz)
-        return local
-
     event_groups = []
     for e in events:
         e.time = utc_to_local(e.timestamp)
